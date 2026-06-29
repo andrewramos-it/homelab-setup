@@ -1,238 +1,58 @@
-# 🏠 Homelab Setup — Windows Server & Active Directory
+# Homelab Environment
 
-A personal homelab built to practice real-world sysadmin and IT support skills including Active Directory administration, DNS/DHCP configuration, Group Policy, PowerShell automation, and network troubleshooting.
+A self-built virtualized lab environment used to develop and practice enterprise IT administration skills, including Active Directory, Group Policy, networking, file services, and system monitoring.
 
----
+## Overview
 
-## 🖥️ Lab Overview
+This homelab was built to simulate a small business / enterprise IT environment end-to-end. It's used as a hands-on extension of my professional experience in IT support and consulting, allowing me to practice infrastructure administration tasks beyond day-to-day Tier 1-3 troubleshooting.
 
-| Component | Details |
-|---|---|
-| Hypervisor | VirtualBox (free) |
-| Server OS | Windows Server 2025 Standard Evaluation |
-| Client OS | Windows 10/11 (VM) |
-| Network Mode | Internal Network + NAT |
-| Domain Name | `lab.local` |
+## Platform
 
----
+- **Virtualization:** VirtualBox / VMware Workstation
+- **Host OS:** Windows
+- **Guest VMs:** Windows Server (Domain Controller, File Server), Linux (TrueNAS), Windows client machines
 
-## 🗂️ Lab Architecture
+## Environment Components
 
-```
-[ Host Machine ]
-      │
-      ├── VM1: Windows Server 2025 (Domain Controller)
-      │         - Active Directory Domain Services (AD DS)
-      │         - DNS Server
-      │         - DHCP Server
-      │         - IIS (Web Server)
-      │         - File and Storage Services
-      │         - Remote Access
-      │
-      └── VM2: Windows 10 Client
-                - Domain-joined to lab.local
-                - Used to test GPOs, user login, permissions
-```
+### Active Directory & Group Policy
+- Windows Server VM promoted to Domain Controller running Active Directory Domain Services (ADDS)
+- Organizational Units (OUs) structured by role/department to scope policy and delegation
+- Group Policy Objects (GPOs) created and linked to test OUs, covering settings such as drive mapping, screen lock policy, and restricted access
+- Verified policy application using `gpupdate /force` and `gpresult /r`
 
----
+### File Services
+- Dual file server setup running both Windows Server (File Services role) and TrueNAS/Linux
+- Used to compare native Windows file sharing and permissions against a NAS-style Linux file server
+- Practiced configuring shared folders, NTFS permissions, and share-level permissions
 
-## ⚙️ Setup Steps
+### Networking
+- Internal virtual network configured across VMs to simulate domain-joined client/server communication
+- Practiced core network troubleshooting using `ping`, `tracert`, `nslookup`, and `ipconfig /all` between VMs
 
-### Step 1 — Install VirtualBox
-- Download from: https://www.virtualbox.org
-- Install with default settings
+### Monitoring
+- System and performance monitoring handled using built-in Windows tools, including Event Viewer, Task Manager, Resource Monitor, and Performance Monitor
+- Used to track VM resource usage and diagnose service failures during testing
 
-### Step 2 — Download Windows Server 2025 ISO
-- Free 180-day eval: https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2022
+## Skills Demonstrated
 
-### Step 3 — Create the Server VM
-- RAM: 2–4 GB minimum
-- Disk: 50 GB (dynamically allocated)
-- Network Adapter 1: NAT (internet access)
-- Network Adapter 2: Internal Network (named `intnet`)
+- Active Directory administration (users, groups, OUs, delegation)
+- Group Policy creation, linking, and troubleshooting
+- Windows Server file services administration
+- Cross-platform file server comparison (Windows vs. Linux/TrueNAS)
+- Virtual machine provisioning and management
+- Network configuration and troubleshooting in a virtualized environment
+- System performance monitoring and root-cause diagnosis
 
-### Step 4 — Install & Configure Windows Server
-1. Boot from ISO, choose **Desktop Experience**
-2. Set a strong Administrator password
-3. Set static IP on the Internal adapter:
-   - IP: `192.168.10.1`
-   - Subnet: `255.255.255.0`
-   - DNS: `127.0.0.1`
+## Why This Project Exists
 
-### Step 5 — Promote to Domain Controller
-```powershell
-Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
-Install-ADDSForest -DomainName "lab.local"
-```
-Reboot when prompted.
+I built this lab to deepen my hands-on experience with enterprise infrastructure administration, specifically Active Directory, Group Policy, and file services, skills that come up consistently in IT operations, systems administration, and supervisory IT roles. It complements the documentation and support process work shown in my other repositories below.
 
-### Step 6 — Install Remaining Server Roles
+## Related Projects
 
-Via **Server Manager → Add Roles and Features**, install:
+- [IT Helpdesk Runbook](https://github.com/andrewramos-it/it-helpdesk-runbook) — Structured Tier 1 troubleshooting documentation
+- [Ticketing Workflow Tracker](https://tinyurl.com/ARTicketing) — Mock help desk ticket tracking system
 
-```
-✅ DHCP Server
-✅ DNS Server
-✅ IIS (Web Server)
-✅ File and Storage Services
-✅ Remote Access
-```
+## Contact
 
-All roles should show green **Manageability** status on the Server Manager Dashboard when healthy.
-
-![Server Manager Dashboard](./screenshots/Setup_VM_Lab_for_Windows_Server_2025.png)
-
-### Step 7 — Configure DHCP
-```powershell
-Install-WindowsFeature -Name DHCP -IncludeManagementTools
-Add-DhcpServerV4Scope -Name "LabScope" -StartRange 192.168.10.100 -EndRange 192.168.10.200 -SubnetMask 255.255.255.0
-Set-DhcpServerV4OptionValue -DnsServer 192.168.10.1 -Router 192.168.10.1
-```
-
-### Step 8 — Create the Client VM
-- RAM: 2 GB minimum
-- Disk: 40 GB
-- Network: Internal Network (`intnet`)
-- Install Windows 10/11
-
-### Step 9 — Join Client to Domain
-1. Set DNS to `192.168.10.1`
-2. Go to: System → Rename this PC (Advanced) → Change → Domain: `lab.local`
-3. Enter domain admin credentials
-4. Reboot
-
----
-
-## 👥 Bulk User Creation via PowerShell
-
-To populate Active Directory with test users, a PowerShell script reads names from a text file and provisions accounts automatically — including generating usernames, setting passwords, and placing users into a dedicated OU.
-
-![PowerShell Bulk User Creation](./screenshots/PowerShell_Creating_Users_in_AD_for_Lab.png)
-
-### File Structure
-
-```
-/
-├── 1_CREATE_USERS.ps1     # Bulk user creation script
-├── names.txt              # First and last names, one per line
-└── README.md
-```
-
-### `names.txt` Format
-
-```
-Kyle Destefano
-Yvonne Strandberg
-Laura Sande
-Kenneth Menefee
-```
-
-### `1_CREATE_USERS.ps1`
-
-```powershell
-# ---- Edit these Variables for your own Use Case ----- #
-$PASSWORD_FOR_USERS   = "Password1"
-$USER_FIRST_LAST_LIST = Get-Content .\names.txt
-# ------------------------------------------------------ #
-
-$password = ConvertTo-SecureString $PASSWORD_FOR_USERS -AsPlainText -Force
-
-New-ADOrganizationalUnit -Name _USERS -ProtectedFromAccidentalDeletion $false
-
-foreach ($n in $USER_FIRST_LAST_LIST) {
-    $first    = $n.Split(" ")[0].ToLower()
-    $last     = $n.Split(" ")[1].ToLower()
-    $username = "$($first.Substring(0,1))$($last)".ToLower()
-
-    Write-Host "Creating user: $($username)" -BackgroundColor Black -ForegroundColor Cyan
-
-    New-AdUser -AccountPassword $password `
-               -GivenName $first `
-               -Surname $last `
-               -DisplayName $username `
-               -Name $username `
-               -EmployeeID $username `
-               -PasswordNeverExpires $true `
-               -Path "ou=_USERS,$(([ADSI]"").distinguishedName)" `
-               -Enabled $true
-}
-```
-
-**How to run:**
-```powershell
-Set-ExecutionPolicy Unrestricted
-cd C:\path\to\scripts
-.\1_CREATE_USERS.ps1
-```
-
-**How username generation works:**
-
-| Input Name | Generated Username |
-|---|---|
-| Kyle Destefano | `kdestefano` |
-| Yvonne Strandberg | `ystrandberg` |
-| Laura Sande | `lsande` |
-
-> ⚠️ **Lab use only.** `Password1` and `PasswordNeverExpires` are intentionally simplified for testing. Never replicate in production.
-
----
-
-## 🔬 Practice Scenarios
-
-| Scenario | Skills Practiced |
-|---|---|
-| Create & manage AD users/OUs | Active Directory, RSAT |
-| Bulk provision users via PowerShell | PowerShell, AD automation |
-| Apply and test Group Policy Objects | GPO, security policy |
-| Simulate account lockout + unlock | AD troubleshooting |
-| Configure shared folders with permissions | NTFS, file sharing |
-| Troubleshoot DNS resolution failures | DNS, nslookup |
-| Review Event Logs for login failures | Event Viewer, log analysis |
-| Reset user passwords via PowerShell | PowerShell, AD automation |
-
----
-
-## 💡 Key Commands Reference
-
-```powershell
-# Create a single AD user
-New-ADUser -Name "Jane Doe" -GivenName "Jane" -Surname "Doe" -SamAccountName "jdoe" `
-  -UserPrincipalName "jdoe@lab.local" -Path "OU=Staff,DC=lab,DC=local" `
-  -AccountPassword (ConvertTo-SecureString "P@ssword1" -AsPlainText -Force) -Enabled $true
-
-# Unlock a locked account
-Unlock-ADAccount -Identity "jdoe"
-
-# Reset a password
-Set-ADAccountPassword -Identity "jdoe" -NewPassword (ConvertTo-SecureString "NewP@ss1" -AsPlainText -Force) -Reset
-
-# List all users in an OU
-Get-ADUser -Filter * -SearchBase "OU=Staff,DC=lab,DC=local" | Select-Object Name, SamAccountName, Enabled
-
-# List all users in the _USERS OU (bulk-created)
-Get-ADUser -Filter * -SearchBase "ou=_USERS,dc=lab,dc=local" | Select-Object Name, SamAccountName
-
-# Check last logon
-Get-ADUser -Identity "jdoe" -Properties LastLogonDate | Select-Object Name, LastLogonDate
-```
-
----
-
-## 📚 Resources Used
-
-- [Microsoft Learn — Active Directory](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/virtual-dc/active-directory-domain-services-overview)
-- [VirtualBox Documentation](https://www.virtualbox.org/manual/)
-- [Windows Server 2022 Eval Center](https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2022)
-
----
-
-## 🎯 Goals
-
-- [x] Domain Controller deployed
-- [x] All server roles installed and healthy (AD DS, DHCP, DNS, IIS, File Services, Remote Access)
-- [x] Client machine domain-joined
-- [x] DHCP and DNS configured
-- [x] Bulk AD user creation automated with PowerShell
-- [ ] Group Policy Objects implemented
-- [ ] Shared drive permissions configured
-- [ ] Simulate and resolve common Tier 1 AD issues
+**Andrew Ramos**
+[LinkedIn](https://linkedin.com/in/andrew-ramos-821a42153) | [GitHub](https://github.com/andrewramos-it)
